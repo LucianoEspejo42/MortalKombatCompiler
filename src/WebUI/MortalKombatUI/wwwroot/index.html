@@ -1,0 +1,452 @@
+﻿import React, { useState, useEffect, useRef } from 'react';
+import { Gamepad2, Zap, Skull, Timer, CheckCircle, XCircle, Play, RotateCcw } from 'lucide-react';
+
+const CyraxFatalityUI = () => {
+  const [inputSequence, setInputSequence] = useState([]);
+  const [currentMove, setCurrentMove] = useState(null);
+  const [compilationStatus, setCompilationStatus] = useState('idle');
+  const [timeRemaining, setTimeRemaining] = useState(2000);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [logs, setLogs] = useState([]);
+  const [stats, setStats] = useState({ attempts: 0, success: 0, failed: 0 });
+
+  const timeoutRef = useRef(null);
+  const startTimeRef = useRef(null);
+
+  // Definiciones de movimientos de Cyrax
+  const cyraxMoves = {
+    fatality1: {
+      name: "Self-Destruct",
+      type: "FATALITY",
+      sequence: ["DOWN", "DOWN", "UP", "DOWN", "HP"],
+      color: "from-red-600 to-orange-600"
+    },
+    fatality2: {
+      name: "Helicopter",
+      type: "FATALITY",
+      sequence: ["DOWN", "DOWN", "FORWARD", "UP", "RUN"],
+      color: "from-purple-600 to-pink-600"
+    },
+    brutality: {
+      name: "Cyrax Brutality",
+      type: "BRUTALITY",
+      sequence: ["HP", "LK", "HK", "HK", "LP", "LP", "HP", "LP", "LK", "HK", "LK"],
+      color: "from-yellow-600 to-red-600"
+    }
+  };
+
+  // Mapeo de botones del gamepad a comandos
+  const buttonMap = {
+    12: "UP",      // D-Pad Up
+    13: "DOWN",    // D-Pad Down
+    14: "LEFT",    // D-Pad Left
+    15: "RIGHT",   // D-Pad Right
+    2: "LP",       // X button
+    3: "HP",       // Y button
+    0: "LK",       // A button
+    1: "HK",       // B button
+    5: "BL",       // RB
+    4: "RUN"       // LB
+  };
+
+  // Simulador de inputs para testing (cuando no hay gamepad)
+  const simulateInput = (command) => {
+    if (compilationStatus === 'idle' || compilationStatus === 'compiling') {
+      addInput(command);
+    }
+  };
+
+  // Agregar input a la secuencia
+  const addInput = (command) => {
+    const now = Date.now();
+    const timeSinceLast = startTimeRef.current ? now - startTimeRef.current : 0;
+
+    if (inputSequence.length === 0) {
+      startTimeRef.current = now;
+      startTimeout();
+    } else {
+      resetTimeout();
+    }
+
+    const newInput = {
+      command,
+      timestamp: now,
+      millisecondsSincePrevious: timeSinceLast
+    };
+
+    const newSequence = [...inputSequence, newInput];
+    setInputSequence(newSequence);
+    setCompilationStatus('compiling');
+
+    addLog(`Input: ${command} (${timeSinceLast}ms)`, 'info');
+
+    // Verificar si coincide con algún movimiento
+    checkSequence(newSequence);
+  };
+
+  // Iniciar timeout de 2 segundos
+  const startTimeout = () => {
+    if (timeoutRef.current) clearInterval(timeoutRef.current);
+
+    const startTime = Date.now();
+    timeoutRef.current = setInterval(() => {
+      const elapsed = Date.now() - startTime;
+      const remaining = Math.max(0, 2000 - elapsed);
+      setTimeRemaining(remaining);
+
+      if (remaining === 0) {
+        handleTimeout();
+      }
+    }, 50);
+  };
+
+  // Resetear timeout
+  const resetTimeout = () => {
+    if (timeoutRef.current) {
+      clearInterval(timeoutRef.current);
+      startTimeout();
+    }
+  };
+
+  // Manejar timeout
+  const handleTimeout = () => {
+    if (timeoutRef.current) {
+      clearInterval(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+
+    if (inputSequence.length > 0) {
+      addLog('⏱️ Timeout - Secuencia incompleta', 'error');
+      setCompilationStatus('timeout');
+      setStats(prev => ({ ...prev, failed: prev.failed + 1, attempts: prev.attempts + 1 }));
+
+      setTimeout(() => {
+        resetSequence();
+      }, 2000);
+    }
+  };
+
+  // Verificar si la secuencia coincide con algún movimiento
+  const checkSequence = (sequence) => {
+    const commands = sequence.map(inp => inp.command);
+
+    for (const [key, move] of Object.entries(cyraxMoves)) {
+      if (arraysEqual(commands, move.sequence)) {
+        executeMove(move);
+        return;
+      }
+
+      // Verificar si es un prefijo válido
+      if (isValidPrefix(commands, move.sequence)) {
+        return; // Continuar esperando más inputs
+      }
+    }
+
+    // No coincide con ningún movimiento
+    if (commands.length >= 5) {
+      addLog('❌ Secuencia inválida', 'error');
+      setCompilationStatus('error');
+      setStats(prev => ({ ...prev, failed: prev.failed + 1, attempts: prev.attempts + 1 }));
+
+      setTimeout(() => {
+        resetSequence();
+      }, 2000);
+    }
+  };
+
+  // Ejecutar movimiento detectado
+  const executeMove = (move) => {
+    if (timeoutRef.current) {
+      clearInterval(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+
+    setCurrentMove(move);
+    setCompilationStatus('success');
+    setIsAnimating(true);
+    setStats(prev => ({ ...prev, success: prev.success + 1, attempts: prev.attempts + 1 }));
+
+    addLog(`✅ ${move.type} DETECTADO: ${move.name}`, 'success');
+
+    // Simular animación
+    setTimeout(() => {
+      setIsAnimating(false);
+      setTimeout(() => {
+        resetSequence();
+      }, 2000);
+    }, 3000);
+  };
+
+  // Resetear secuencia
+  const resetSequence = () => {
+    setInputSequence([]);
+    setCurrentMove(null);
+    setCompilationStatus('idle');
+    setTimeRemaining(2000);
+    startTimeRef.current = null;
+
+    if (timeoutRef.current) {
+      clearInterval(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+  };
+
+  // Utilidades
+  const arraysEqual = (a, b) => {
+    return a.length === b.length && a.every((val, idx) => val === b[idx]);
+  };
+
+  const isValidPrefix = (commands, target) => {
+    if (commands.length >= target.length) return false;
+    return commands.every((cmd, idx) => cmd === target[idx]);
+  };
+
+  const addLog = (message, type) => {
+    setLogs(prev => [{
+      message,
+      type,
+      timestamp: new Date().toLocaleTimeString()
+    }, ...prev].slice(0, 10));
+  };
+
+  // Polling del gamepad
+  useEffect(() => {
+    let animationFrame;
+    let lastButtons = [];
+
+    const pollGamepad = () => {
+      const gamepads = navigator.getGamepads();
+      const gamepad = gamepads[0];
+
+      if (gamepad) {
+        gamepad.buttons.forEach((button, index) => {
+          if (button.pressed && !lastButtons[index]) {
+            const command = buttonMap[index];
+            if (command) {
+              simulateInput(command);
+            }
+          }
+        });
+
+        lastButtons = gamepad.buttons.map(b => b.pressed);
+      }
+
+      animationFrame = requestAnimationFrame(pollGamepad);
+    };
+
+    animationFrame = requestAnimationFrame(pollGamepad);
+
+    return () => {
+      if (animationFrame) cancelAnimationFrame(animationFrame);
+      if (timeoutRef.current) clearInterval(timeoutRef.current);
+    };
+  }, [inputSequence, compilationStatus]);
+
+  // Obtener icono según el comando
+  const getCommandIcon = (cmd) => {
+    const icons = {
+      UP: "↑", DOWN: "↓", LEFT: "←", RIGHT: "→",
+      FORWARD: "→", BACK: "←",
+      HP: "🥊", LP: "👊", HK: "🦵", LK: "🦶",
+      BL: "🛡️", RUN: "🏃"
+    };
+    return icons[cmd] || cmd;
+  };
+
+  return (
+<div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-black text-white p-8">
+    {/* Header */}
+    <div className="max-w-7xl mx-auto mb-8">
+        <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4">
+                <Skull className="w-12 h-12 text-red-500" />
+                <div>
+                    <h1 className="text-4xl font-bold bg-gradient-to-r from-yellow-400 to-red-600 bg-clip-text text-transparent">
+                        CYRAX FATALITY COMPILER
+                    </h1>
+                    <p className="text-gray-400">Mortal Kombat 3 Ultimate - Input Compiler</p>
+                </div>
+            </div>
+
+            <div className="flex items-center gap-4">
+                <Gamepad2 className="w-8 h-8 text-green-500 animate-pulse" />
+                <span className="text-sm text-gray-400">XInput Activo</span>
+            </div>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="bg-gray-800/50 backdrop-blur rounded-lg p-4 border border-gray-700">
+                <div className="text-2xl font-bold text-blue-400">{stats.attempts}</div>
+                <div className="text-sm text-gray-400">Intentos</div>
+            </div>
+            <div className="bg-gray-800/50 backdrop-blur rounded-lg p-4 border border-gray-700">
+                <div className="text-2xl font-bold text-green-400">{stats.success}</div>
+                <div className="text-sm text-gray-400">Exitosos</div>
+            </div>
+            <div className="bg-gray-800/50 backdrop-blur rounded-lg p-4 border border-gray-700">
+                <div className="text-2xl font-bold text-red-400">{stats.failed}</div>
+                <div className="text-sm text-gray-400">Fallidos</div>
+            </div>
+        </div>
+    </div>
+
+    <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Input Display */}
+        <div className="lg:col-span-2 space-y-6">
+            {/* Timer Bar */}
+            <div className="bg-gray-800/50 backdrop-blur rounded-lg p-6 border border-gray-700">
+                <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                        <Timer className="w-5 h-5" />
+                        <span className="font-semibold">Tiempo Restante</span>
+                    </div>
+                    <span className="text-2xl font-mono">{(timeRemaining / 1000).toFixed(2)}s</span>
+                </div>
+                <div className="h-3 bg-gray-700 rounded-full overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-green-500 via-yellow-500 to-red-500 transition-all duration-100"
+                         style={{ width: `${(timeRemaining / 2000) * 100}%` }} />
+                </div>
+            </div>
+
+            {/* Input Sequence Display */}
+            <div className="bg-gray-800/50 backdrop-blur rounded-lg p-6 border border-gray-700">
+                <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                    <Play className="w-5 h-5" />
+                    Secuencia de Inputs
+                </h2>
+
+                <div className="flex flex-wrap gap-3 min-h-[100px]">
+                    {inputSequence.length === 0 ? (
+                    <div className="w-full text-center py-8 text-gray-500">
+                        Esperando inputs del joystick...
+                    </div>
+                    ) : (
+                    inputSequence.map((input, idx) => (
+                    <div key={idx} className="relative">
+                        <div className="bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg p-4 shadow-lg transform hover:scale-110 transition-transform">
+                            <div className="text-3xl">{getCommandIcon(input.command)}</div>
+                            <div className="text-xs mt-1 font-mono">{input.command}</div>
+                        </div>
+                        {idx > 0 && (
+                        <div className="absolute -top-2 -right-2 bg-yellow-500 text-black text-xs px-2 py-1 rounded-full font-bold">
+                            {input.millisecondsSincePrevious}ms
+                        </div>
+                        )}
+                    </div>
+                    ))
+                    )}
+                </div>
+
+                {/* Status Indicator */}
+                <div className="mt-6 flex items-center justify-center gap-3">
+                    {compilationStatus === 'idle' && (
+                    <div className="flex items-center gap-2 text-gray-400">
+                        <div className="w-3 h-3 bg-gray-500 rounded-full" />
+                        <span>Esperando...</span>
+                    </div>
+                    )}
+                    {compilationStatus === 'compiling' && (
+                    <div className="flex items-center gap-2 text-blue-400">
+                        <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse" />
+                        <span>Compilando secuencia...</span>
+                    </div>
+                    )}
+                    {compilationStatus === 'success' && (
+                    <div className="flex items-center gap-2 text-green-400">
+                        <CheckCircle className="w-5 h-5" />
+                        <span className="font-bold">¡COMPILACIÓN EXITOSA!</span>
+                    </div>
+                    )}
+                    {(compilationStatus === 'error' || compilationStatus === 'timeout') && (
+                    <div className="flex items-center gap-2 text-red-400">
+                        <XCircle className="w-5 h-5" />
+                        <span className="font-bold">
+                            {compilationStatus === 'timeout' ? 'TIMEOUT' : 'ERROR DE COMPILACIÓN'}
+                        </span>
+                    </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Animation Display */}
+            {currentMove && (
+            <div className={`bg-gradient-to-br ${currentMove.color} rounded-lg p-8 border-4 border-yellow-400 shadow-2xl ${isAnimating ? 'animate-pulse' : '' }`}>
+                <div className="text-center">
+                    <Zap className="w-16 h-16 mx-auto mb-4 text-yellow-300" />
+                    <h2 className="text-4xl font-bold mb-2">{currentMove.type}</h2>
+                    <h3 className="text-2xl font-semibold mb-4">{currentMove.name}</h3>
+                    {isAnimating && (
+                    <div className="text-6xl animate-bounce">💀</div>
+                    )}
+                </div>
+            </div>
+            )}
+
+            {/* Test Controls */}
+            <div className="bg-gray-800/50 backdrop-blur rounded-lg p-6 border border-gray-700">
+                <h3 className="font-bold mb-4">Controles de Prueba (sin gamepad)</h3>
+                <div className="grid grid-cols-4 gap-2">
+                    {Object.entries(buttonMap).map(([key, cmd]) => (
+                    <button key={cmd}
+                            onClick={() =>
+                        simulateInput(cmd)}
+                        disabled={compilationStatus === 'success'}
+                        className="bg-gray-700 hover:bg-gray-600 disabled:bg-gray-800 disabled:opacity-50 p-3 rounded-lg font-mono text-sm transition-colors"
+                        >
+                        {cmd}
+                    </button>
+                    ))}
+                </div>
+                <button onClick={resetSequence}
+                        className="w-full mt-4 bg-red-600 hover:bg-red-700 p-3 rounded-lg font-bold flex items-center justify-center gap-2">
+                    <RotateCcw className="w-4 h-4" />
+                    Resetear
+                </button>
+            </div>
+        </div>
+
+        {/* Sidebar */}
+        <div className="space-y-6">
+            {/* Move Reference */}
+            <div className="bg-gray-800/50 backdrop-blur rounded-lg p-6 border border-gray-700">
+                <h2 className="text-xl font-bold mb-4">Movimientos de Cyrax</h2>
+                {Object.values(cyraxMoves).map((move, idx) => (
+                <div key={idx} className="mb-4 pb-4 border-b border-gray-700 last:border-0">
+                    <div className={`text-sm font-bold mb-1 bg-gradient-to-r ${move.color} bg-clip-text text-transparent`}>
+                        {move.type}
+                    </div>
+                    <div className="font-semibold mb-2">{move.name}</div>
+                    <div className="flex flex-wrap gap-1">
+                        {move.sequence.map((cmd, i) => (
+                        <span key={i} className="bg-gray-700 px-2 py-1 rounded text-xs font-mono">
+                            {cmd}
+                        </span>
+                        ))}
+                    </div>
+                </div>
+                ))}
+            </div>
+
+            {/* Compilation Log */}
+            <div className="bg-gray-800/50 backdrop-blur rounded-lg p-6 border border-gray-700">
+                <h2 className="text-xl font-bold mb-4">Log de Compilación</h2>
+                <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                    {logs.map((log, idx) => (
+                    <div key={idx}
+                         className={`text-sm p-2 rounded ${
+                         log.type= = ='success' ? 'bg-green-900/30 text-green-300' :
+                         log.type= = ='error' ? 'bg-red-900/30 text-red-300' :
+                         'bg-blue-900/30 text-blue-300'
+                         }`}>
+                        <span className="text-gray-500 text-xs">{log.timestamp}</span>
+                        <div>{log.message}</div>
+                    </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+  );
+};

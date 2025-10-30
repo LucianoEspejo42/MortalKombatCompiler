@@ -1,0 +1,227 @@
+COMPILER MortalKombat
+
+// ===========================
+// DECLARACIONES GLOBALES
+// ===========================
+/*
+  Este es el compilador de fatalities/brutalities para Mortal Kombat 3 Ultimate.
+  Valida secuencias de inputs con restricciones temporales.
+*/
+
+using System.Collections.Generic;
+using System.Linq;
+
+
+// Variables globales del parser
+public List<TimedInput> inputSequence = new List<TimedInput>();
+public CompilationResult result = new CompilationResult();
+public const int TIMEOUT_MS = 2000;
+public const int DEBOUNCE_MS = 50;
+
+// Estructura para inputs con tiempo
+public class TimedInput
+{
+    public string Command { get; set; }
+    public int TimingMs { get; set; }
+}
+
+// Resultado de la compilación
+public class CompilationResult
+{
+    public bool Success { get; set; }
+    public string MoveType { get; set; } // "FATALITY" o "BRUTALITY"
+    public string MoveName { get; set; }
+    public List<string> Errors { get; set; } = new List<string>();
+    public List<TimedInput> ValidatedSequence { get; set; }
+    public string GeneratedCode { get; set; }
+}
+
+// Definiciones de movimientos de Cyrax
+public static readonly Dictionary<string, List<string>> CyraxMoves = new Dictionary<string, List<string>>
+{
+    { "FATALITY_SELF_DESTRUCT", new List<string> { "DOWN", "DOWN", "UP", "DOWN", "HP" } },
+    { "FATALITY_HELICOPTER", new List<string> { "DOWN", "DOWN", "FORWARD", "UP", "RUN" } },
+    { "BRUTALITY_CYRAX", new List<string> { "HP", "LK", "HK", "HK", "LP", "LP", "HP", "LP", "LK", "HK", "LK" } }
+};
+
+// Métodos auxiliares
+private void ValidateTimings()
+{
+    for (int i = 0; i < inputSequence.Count; i++)
+    {
+        var input = inputSequence[i];
+        
+        // Validar timeout (excepto el primero)
+        if (i > 0 && input.TimingMs > TIMEOUT_MS)
+        {
+            result.Errors.Add($"Error: Timeout excedido en input {i + 1}. " +
+                            $"Tiempo: {input.TimingMs}ms, Máximo: {TIMEOUT_MS}ms");
+            result.Success = false;
+        }
+        
+        // Validar debounce (excepto el primero)
+        if (i > 0 && input.TimingMs < DEBOUNCE_MS)
+        {
+            result.Errors.Add($"Error: Inputs demasiado rápidos en posición {i + 1}. " +
+                            $"Tiempo: {input.TimingMs}ms, Mínimo: {DEBOUNCE_MS}ms");
+            result.Success = false;
+        }
+    }
+}
+
+private void IdentifyMove()
+{
+    var commands = inputSequence.Select(i => i.Command).ToList();
+    
+    foreach (var move in CyraxMoves)
+    {
+        if (commands.SequenceEqual(move.Value))
+        {
+            result.Success = true;
+            result.ValidatedSequence = inputSequence;
+            
+            // Identificar el tipo de movimiento
+            if (move.Key.StartsWith("FATALITY"))
+            {
+                result.MoveType = "FATALITY";
+                result.MoveName = move.Key.Replace("FATALITY_", "").Replace("_", " ");
+            }
+            else if (move.Key.StartsWith("BRUTALITY"))
+            {
+                result.MoveType = "BRUTALITY";
+                result.MoveName = move.Key.Replace("BRUTALITY_", "").Replace("_", " ");
+            }
+            
+            return;
+        }
+    }
+    
+    // Si llegamos aquí, la secuencia no coincide con ningún movimiento
+    result.Errors.Add("Error: Secuencia no coincide con ninguna fatality o brutality conocida.");
+    result.Success = false;
+}
+
+private void GenerateIntermediateCode()
+{
+    if (!result.Success) return;
+    
+    var code = new System.Text.StringBuilder();
+    
+    code.AppendLine("// CÓDIGO INTERMEDIO GENERADO");
+    code.AppendLine($"// Movimiento: {result.MoveType} - {result.MoveName}");
+    code.AppendLine($"// Total de inputs: {inputSequence.Count}");
+    code.AppendLine();
+    
+    code.AppendLine("EXECUTE {");
+    code.AppendLine($"    MOVE_TYPE: {result.MoveType}");
+    code.AppendLine($"    MOVE_NAME: {result.MoveName}");
+    code.AppendLine("    SEQUENCE: [");
+    
+    foreach (var input in inputSequence)
+    {
+        code.AppendLine($"        {{ COMMAND: \"{input.Command}\", TIMING: {input.TimingMs} }},");
+    }
+    
+    code.AppendLine("    ]");
+    code.AppendLine("    ANIMATION: START");
+    code.AppendLine($"    DURATION: {inputSequence.Sum(i => i.TimingMs)}ms");
+    code.AppendLine("}");
+    
+    result.GeneratedCode = code.ToString();
+}
+
+// ===========================
+// DEFINICIÓN DE CARACTERES
+// ===========================
+
+CHARACTERS
+  letter = 'A'..'Z' + 'a'..'z'.
+  digit = '0'..'9'.
+  cr = '\r'.
+  lf = '\n'.
+  tab = '\t'.
+
+// ===========================
+// DEFINICIÓN DE TOKENS
+// ===========================
+
+TOKENS
+  // Direcciones
+  UP = "UP".
+  DOWN = "DOWN".
+  LEFT = "LEFT".
+  RIGHT = "RIGHT".
+  FORWARD = "FORWARD".
+  BACK = "BACK".
+  
+  // Botones
+  LP = "LP".      // Low Punch
+  HP = "HP".      // High Punch
+  LK = "LK".      // Low Kick
+  HK = "HK".      // High Kick
+  BL = "BL".      // Block
+  RUN = "RUN".    // Run
+  
+  // Timing (milisegundos desde el input anterior)
+  TIMING = "T:" digit {digit}.
+  
+  // Marcadores de secuencia
+  SEQ_START = "SEQUENCE_START".
+  SEQ_END = "SEQUENCE_END".
+
+IGNORE cr + lf + tab
+
+// ===========================
+// PRODUCCIONES (GRAMÁTICA)
+// ===========================
+
+PRODUCTIONS
+
+MortalKombat                              (. result.Success = true; .)
+= 
+  SEQ_START                               (. inputSequence.Clear(); .)
+  TimedSequence
+  SEQ_END                                 (. ValidateTimings(); 
+                                             if (result.Success) {
+                                                 IdentifyMove();
+                                                 GenerateIntermediateCode();
+                                             } 
+                                          .).
+
+TimedSequence
+= 
+  TimedInput { TimedInput }.
+
+TimedInput                                (. string command = ""; 
+                                             int timing = 0; .)
+= 
+  (Direction<out command> | Button<out command>)
+  [ TIMING                                (. string timingStr = t.val.Substring(2); // Quitar "T:"
+                                             timing = int.Parse(timingStr); 
+                                          .)
+  ]                                       (. inputSequence.Add(new TimedInput 
+                                             { 
+                                                 Command = command, 
+                                                 TimingMs = timing 
+                                             }); 
+                                          .).
+
+Direction<out string dir>                 (. dir = ""; .)
+= 
+    UP                                    (. dir = "UP"; .)
+  | DOWN                                  (. dir = "DOWN"; .)
+  | LEFT                                  (. dir = "LEFT"; .)
+  | RIGHT                                 (. dir = "RIGHT"; .)
+  | FORWARD                               (. dir = "FORWARD"; .)
+  | BACK                                  (. dir = "BACK"; .).
+
+Button<out string btn>                    (. btn = ""; .)
+= 
+    LP                                    (. btn = "LP"; .)
+  | HP                                    (. btn = "HP"; .)
+  | LK                                    (. btn = "LK"; .)
+  | HK                                    (. btn = "HK"; .)
+  | BL                                    (. btn = "BL"; .)
+  | RUN                                   (. btn = "RUN"; .).
+
+END MortalKombat.

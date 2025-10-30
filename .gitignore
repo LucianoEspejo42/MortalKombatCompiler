@@ -1,0 +1,24 @@
+# Compilación .NET
+bin/
+obj/
+*.exe
+*.dll
+*.pdb
+
+# Configs locales
+.vs/
+*.user
+*.suo
+
+# Node.js
+node_modules/
+dist/
+build/
+npm-debug.log
+.env
+
+# Archivos temporales
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
