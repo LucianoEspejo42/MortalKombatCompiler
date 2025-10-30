@@ -1,124 +1,127 @@
-﻿# Compilador de Mortal Kombat 3 Ultimate - Cyrax Fatalities & Brutalities
+# Mortal Kombat Compiler (Cyrax Edition)
 
-Compilador completo para detectar y ejecutar las fatalities y brutalities de Cyrax usando inputs de un control Xbox (XInput).
+Un proyecto académico que simula un **compilador interactivo** basado en *Mortal Kombat 3 Ultimate*, desarrollado con **C# (.NET 8)**, **COCO/R**, y un **frontend en React + Vite**.
 
-## 🎮 Características
+---
 
-- ✅ Compilador completo con COCO/R
-- ✅ Captura de inputs con XInput (Xbox Controller)
-- ✅ Validación temporal (2 segundos entre inputs)
-- ✅ Detección de 3 movimientos de Cyrax
-- ✅ Interfaz web con SignalR en tiempo real
-- ✅ Generación de código intermedio
-- ✅ API REST para integración
+## Estructura del Proyecto
 
-## 📋 Requisitos
-
-- .NET 8.0 SDK
-- Visual Studio 2022 o VS Code
-- Control Xbox compatible con XInput
-- COCO/R (incluido en `tools/`)
-
-## 🚀 Instalación
-
-### 1. Clonar el repositorio
-```bash
-git clone https://github.com/tu-usuario/mortal-kombat-compiler.git
-cd mortal-kombat-compiler
+```
+MortalKombatCompiler/
+├── src/
+│   ├── Common/                     # Modelos y constantes compartidas
+│   ├── Compiler/                   # Analizador léxico, sintáctico y semántico (Coco/R)
+│   ├── InputCapture/               # Módulo de lectura y serialización de inputs
+│   ├── MortalKombatCompiler.Backend/
+│   │   └── MortalKombatCompiler.API/   # API REST (.NET)
+│   └── WebUI/
+│       └── MortalKombatUI/
+│           ├── ClientApp/          # Frontend React + Vite
+│           └── wwwroot/            # Archivos estáticos
 ```
 
-### 2. Restaurar paquetes NuGet
+---
+
+##  Requisitos Previos
+
+Antes de comenzar, asegúrate de tener instalado:
+
+* [Node.js](https://nodejs.org/) (versión 18 o superior)
+* [.NET SDK 8.0+](https://dotnet.microsoft.com/en-us/download)
+* [Git](https://git-scm.com/)
+
+---
+
+##  Instalación
+
+1️ **Clonar el repositorio desde GitHub**
+
+```bash
+git clone https://github.com/LucianoEspejo42/MortalKombatCompiler.git
+```
+
+2️ **Abrir la carpeta del proyecto**
+
+```bash
+cd MortalKombatCompiler
+```
+
+3️ **Restaurar los paquetes de .NET**
+
 ```bash
 dotnet restore
 ```
 
-### 3. Generar el Parser con COCO/R
+4️ **Instalar dependencias del frontend**
+
 ```bash
-cd src/Compiler/Grammar
-./generate.bat  # Windows
-# o
-./generate.sh   # Linux/Mac
+cd src/WebUI/MortalKombatUI/ClientApp
+npm install
 ```
 
-### 4. Compilar la solución
-```bash
-dotnet build
-```
+---
 
-### 5. Ejecutar la aplicación
+##  Ejecución
+
+### Opción 1: Ejecutar todo desde Visual Studio / Rider
+
+* Abre la solución `MortalKombatCompiler.sln`.
+* Establece `MortalKombatUI` como proyecto de inicio.
+* Ejecuta (F5).
+
+### Opción 2: Manualmente desde terminal
+
+1️ **Levantar el backend**
+
 ```bash
 cd src/WebUI/MortalKombatUI
 dotnet run
 ```
 
-Abre tu navegador en: `https://localhost:5001`
+2️ **Levantar el frontend**
 
-## 🎯 Movimientos Implementados
-
-### Fatality 1: Self-Destruct
-**Secuencia:** DOWN, DOWN, UP, DOWN, HP
-
-### Fatality 2: Helicopter
-**Secuencia:** DOWN, DOWN, FORWARD, UP, RUN
-
-### Brutality
-**Secuencia:** HP, LK, HK, HK, LP, LP, HP, LP, LK, HK, LK
-
-## 🕹️ Mapeo de Botones
-
-| Xbox Controller | Comando MK |
-|----------------|------------|
-| D-Pad Up       | UP         |
-| D-Pad Down     | DOWN       |
-| D-Pad Left     | LEFT       |
-| D-Pad Right    | RIGHT      |
-| A Button       | LK         |
-| B Button       | HK         |
-| X Button       | LP         |
-| Y Button       | HP         |
-| LB             | RUN        |
-| RB             | BLOCK      |
-
-## 📖 Uso del Compilador
-
-### Desde código C#
-```csharp
-using Compiler;
-using Common.Models;
-
-var compiler = new CompilerFacade();
-
-// Desde código fuente
-string source = @"
-SEQUENCE_START
-DOWN T:0
-DOWN T:150
-UP T:180
-DOWN T:200
-HP T:175
-SEQUENCE_END
-";
-
-var result = compiler.CompileFromSource(source);
-
-if (result.Success)
-{
-    Console.WriteLine($"{result.MoveType}: {result.MoveName}");
-    Console.WriteLine(result.IntermediateCode);
-}
-```
-
-### API REST
 ```bash
-# Compilar código fuente
-curl -X POST https://localhost:5001/api/compiler/compile \
-  -H "Content-Type: application/json" \
-  -d '{"sourceCode": "SEQUENCE_START\nDOWN T:0\n..."}'
-
-# Compilar secuencia de inputs
-curl -X POST https://localhost:5001/api/compiler/compile-sequence \
-  -H "Content-Type: application/json" \
-  -d '[{"command":"DOWN","millisecondsSincePrevious":0}, ...]'
+cd ClientApp
+npm run dev
 ```
 
-## 🏗️ Arquitectura
+3️ Luego abre en el navegador:
+
+```
+http://localhost:5173/
+```
+
+---
+
+##  Descripción Técnica
+
+El proyecto se divide en **tres fases principales**:
+
+### 1️ Precompilación
+
+Captura de entradas desde joystick (o simuladas) para generar un código fuente delimitado por `{}`.
+
+### 2️ Compilación
+
+El código fuente pasa por:
+
+* **Scanner** → Análisis léxico (COCO/R)
+* **Parser** → Validación sintáctica y semántica
+* **Generador de código intermedio** → Traduce combos válidos en comandos simbólicos (`Fatality`, `Brutality`, etc.)
+
+### 3️ Interpretación
+
+El resultado se interpreta en el frontend mostrando animaciones o errores según la secuencia detectada.
+
+---
+
+##  Tecnologías Utilizadas
+
+* **C# / .NET 8**
+* **COCO/R**
+* **React + Vite**
+* **TailwindCSS**
+* **SignalR** *(para comunicación en tiempo real, opcional)*
+* **XInput** *(para soporte de joystick Xbox)*
+
+
