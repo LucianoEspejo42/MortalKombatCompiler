@@ -1,8 +1,9 @@
 [build]
-builder = "NIXPACKS"
+builder = "dockerfile"
+dockerfilePath = "src/MortalKombatCompiler.Backend/MortalKombatCompiler.API/Dockerfile"
 
 [deploy]
-startCommand = "cd src/MortalKombatCompiler.Backend/MortalKombatCompiler.API && dotnet run --urls http://0.0.0.0:${PORT}"
+startCommand = "./MortalKombatCompiler.API --urls http://0.0.0.0:${PORT}"
 
 [env]
 ASPNETCORE_ENVIRONMENT = "Production"
