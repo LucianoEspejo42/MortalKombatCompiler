@@ -22,3 +22,11 @@ npm-debug.log
 *.tmp
 .DS_Store
 Thumbs.db
+
+# Frontend
+src/WebUI/MortalKombatUI/ClientApp/dist
+src/WebUI/MortalKombatUI/ClientApp/node_modules
+
+# Backend
+src/MortalKombatCompiler.Backend/MortalKombatCompiler.API/bin
+src/MortalKombatCompiler.Backend/MortalKombatCompiler.API/obj

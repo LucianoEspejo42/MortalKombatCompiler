@@ -1,0 +1,8 @@
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "cd src/MortalKombatCompiler.Backend/MortalKombatCompiler.API && dotnet run --urls http://0.0.0.0:${PORT}"
+
+[env]
+ASPNETCORE_ENVIRONMENT = "Production"

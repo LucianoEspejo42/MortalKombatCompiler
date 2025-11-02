@@ -3,6 +3,9 @@ import selfDestructGif from './assets/animations/fatalities/self-destruct.gif';
 import helicopterGif from './assets/animations/fatalities/helicopter.gif';
 import brutalityGif from './assets/animations/brutalities/cyrax-brutality.gif';
 import friendshipGif from './assets/animations/friendship/cyrax-friendship.gif';
+import logoImage from './assets/logo/logo.webp';
+import mk_Image from './assets/logo/mk3.png';
+
 const CyraxCompiler = () => {
     // Estado de la aplicación
     const [inputSequence, setInputSequence] = useState([]);
@@ -22,6 +25,14 @@ const CyraxCompiler = () => {
     const startTimeRef = useRef(null);
     const lastButtonStateRef = useRef({});
     const buttonCooldownRef = useRef({});
+
+    // Cargar la fuente cuando el componente se monte
+    useEffect(() => {
+        const link = document.createElement('link');
+        link.href = 'https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap';
+        link.rel = 'stylesheet';
+        document.head.appendChild(link);
+    }, []);
 
     // Definiciones de movimientos de Cyrax
     const cyraxMoves = {
@@ -78,10 +89,13 @@ const CyraxCompiler = () => {
     };
 
     const compileWithCSharp = async (sourceCode) => {
+        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5267';
+
         console.log('🔧 [3.1] compileWithCSharp INICIADO con:', sourceCode);
+        console.log('🌐 Usando API URL:', API_URL);
 
         try {
-            const response = await fetch('http://localhost:5267/api/compiler/compile', {
+            const response = await fetch(`${API_URL}/api/compiler/compile`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -396,13 +410,37 @@ const CyraxCompiler = () => {
 
     const Icons = {
         Gamepad: () => (<svg className="w-8 h-8" fill="currentColor" viewBox="0 0 24 24"><path d="M6 9a1 1 0 011-1h2V6a1 1 0 112 0v2h2a1 1 0 110 2H11v2a1 1 0 11-2 0V10H7a1 1 0 01-1-1zm13 0a3 3 0 11-6 0 3 3 0 016 0zM7 19a3 3 0 100-6 3 3 0 000 6z" /></svg>),
-        Skull: ({ className }) => (<svg className={className} fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12c0 2.85 1.2 5.41 3.11 7.24l.01-.01A2.99 2.99 0 008 22h8c1.1 0 2.07-.59 2.61-1.48l.28-.37C20.8 17.41 22 14.85 22 12c0-5.52-4.48-10-10-10zM9 11c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm6 0c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm-3 7c-2.76 0-5-1.79-5-4h10c0 2.21-2.24 4-5 4z" /></svg>),
+        Skull: ({ className }) => (
+            <img
+                src={logoImage}
+                className={className}
+                alt="Cyrax Logo"
+                style={{
+                    width: '9rem',
+                    height: '8rem',
+                    objectFit: 'contain'
+                }}
+            />
+        ),
+        mk3Image: ({ className }) => (
+            <img 
+                src={mk_Image}
+                className={className}
+                alt="Mortal Kombat 3 Logo"
+                style={{
+                    width: '9rem',
+                    height: '8rem',
+                    objectFit: 'contain',
+                    //paddingrigth: '25rem'
+                }}
+            />
+        ),
         Timer: ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" strokeWidth="2" /><path d="M12 6v6l4 2" strokeWidth="2" strokeLinecap="round" /></svg>),
         Zap: ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>),
         CheckCircle: ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" strokeWidth="2" /><path d="M9 12l2 2 4-4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>),
         XCircle: ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" strokeWidth="2" /><path d="M15 9l-6 6M9 9l6 6" strokeWidth="2" strokeLinecap="round" /></svg>),
         Play: ({ className }) => (<svg className={className} fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>),
-        RotateCcw: ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M1 4v6h6M23 20v-6h-6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>)
+        //RotateCcw: ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M1 4v6h6M23 20v-6h-6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>)
     };
 
     const startTimeout = () => {
@@ -522,28 +560,112 @@ const CyraxCompiler = () => {
         }
     }, [isAnimating, currentMove]);
 
+    // Estilos SEGA Genesis del index.html
+    const segaStyles = {
+        container: {
+            backgroundImage: "url('https://cdn.pixabay.com/photo/2017/08/30/01/05/milky-way-2695569_1280.jpg')",
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            backgroundAttachment: 'fixed', 
+            color: '#f1f1f1',
+            minHeight: '100vh',
+            padding: '1rem'
+        },
+        header: {
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            //borderBottom: '4px solid #ffd700',
+            padding: '1rem',
+            marginBottom: '2rem',
+            boxShadow: '0 0 60px rgba(255, 215, 0, 0.6)'
+        },
+        title: {
+            textShadow: '3px 3px 0px #ff0000, 6px 6px 0px #000000',
+            color: '#ffd700',
+            fontSize: '2rem',
+            letterSpacing: '2px',
+            fontFamily: "'Press Start 2P', cursive",
+            textAlign: 'center',
+            marginBottom: '1rem',
+
+        },
+        subtitle: { 
+            fontSize: '1rem',
+            color: '#00ffff',
+            
+            marginBottom: '0.5rem',
+            textShadow: '2px 2px 0px #000000',
+            fontFamily: "'Press Start 2P', cursive",
+        },
+        segaBorder: {
+            border: '4px solid #0073e6',
+            boxShadow: '0 0 0 2px #000, 0 0 0 6px #ff0000, 0 0 10px rgba(0, 0, 0, 0.8)'
+        },
+        segaButton: {
+            background: 'linear-gradient(to bottom, #ff0000, #990000)',
+            color: 'white',
+            textShadow: '1px 1px 0 #000',
+            border: '2px solid #000',
+            padding: '0.5rem 1rem',
+            fontFamily: "'Press Start 2P', cursive",
+            cursor: 'pointer'
+        },
+        card: {
+            backgroundColor: 'rgba(30, 30, 30, 0.9)',
+            border: '3px solid #505050',
+            padding: '0.5rem',
+            cursor: 'pointer',
+            transition: 'transform 0.2s, border-color 0.2s',
+            position: 'relative',
+            overflow: 'hidden'
+        },
+        inputButton: {
+            backgroundColor: '#333',
+            color: '#f1f1f1',
+            padding: '1rem',
+            border: '2px solid #505050',
+            cursor: 'pointer',
+            fontFamily: "'Press Start 2P', cursive",
+            fontSize: '0.7rem',
+            textAlign: 'center',
+            transition: 'background-color 0.2s'
+        },
+        footer: {
+            marginTop: '2rem',
+            textAlign: 'center',
+            fontFamily: "'Press Start 2P', cursive",
+            fontSize: '0.8rem',
+            color: '#888'
+        }
+    };
+
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-black text-white p-4 md:p-8">
-            {/* Header */}
-            <div className="max-w-7xl mx-auto mb-8">
-                <div className="flex flex-col md:flex-row items-center justify-between mb-4 gap-4">
-                    <div className="flex items-center gap-4">
-                        <Icons.Skull className="w-12 h-12 text-red-500" />
-                        <div className="text-center md:text-left">
-                            <h1 className="text-2xl md:text-4xl font-bold bg-gradient-to-r from-yellow-400 to-red-600 bg-clip-text text-transparent">
-                                CYRAX COMPILER
-                            </h1>
-                            <p className="text-gray-400 text-sm md:text-base">Mortal Kombat 3 Ultimate</p>
-                        </div>
+        <div style={segaStyles.container}>
+            {/* Header con estilo SEGA */}
+            <div className="max-w-7xl mx-auto mb-8" style={segaStyles.header}>
+                <div className="flex items-center justify-between mb-4 gap-4">
+                    {/* Columna izquierda: Logo */}
+                    <div className="flex items-center gap-4 flex-1 justify-start">
+                        <Icons.Skull className="w-12 h-12" />
                     </div>
-                    <div className={`flex items-center gap-3 px-4 py-2 rounded-lg ${gamepadConnected ? 'bg-green-900/30' : 'bg-red-900/30'}`}>
-                        <Icons.Gamepad />
-                        <span className="text-sm font-semibold">{gamepadConnected ? 'Conectado' : 'Desconectado'}</span>
+
+                    {/* Columna central: Título - Centrado */}
+                    <div className="flex flex-col items-center justify-center flex-1 text-center">
+                        <h1 style={segaStyles.title}>CYRAX COMPILER</h1>
+                        <p style={segaStyles.subtitle}>Mortal Kombat 3 Ultimate</p>
+                    </div>
+
+                    {/* Columna derecha: Imagen MK3 y estado del gamepad */}
+                    <div className="flex items-center gap-4 flex-1 justify-end">
+                        <Icons.mk3Image className="mr-4" />
+                        <div className={`flex items-center gap-3 px-4 py-2 rounded-lg ${gamepadConnected ? 'bg-green-900/30' : 'bg-red-900/30'}`}>
+                            <Icons.Gamepad />
+                            <span className="text-sm font-semibold">{gamepadConnected ? 'Conectado' : 'Desconectado'}</span>
+                        </div>
                     </div>
                 </div>
 
-                {/* Stats */}
-                <div className="grid grid-cols-3 gap-3 md:gap-4">
+                {/* Stats con borde SEGA */}
+                <div className="grid grid-cols-3 gap-3 md:gap-4" style={segaStyles.segaBorder}>
                     <div className="bg-gray-800/50 backdrop-blur rounded-lg p-3 md:p-4 border border-gray-700">
                         <div className="text-xl md:text-2xl font-bold text-blue-400">{stats.attempts}</div>
                         <div className="text-xs md:text-sm text-gray-400">Intentos</div>
@@ -562,8 +684,8 @@ const CyraxCompiler = () => {
             <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Main Content */}
                 <div className="lg:col-span-2 space-y-6">
-                    {/* Timer Bar */}
-                    <div className="bg-gray-800/50 backdrop-blur rounded-lg p-4 md:p-6 border border-gray-700">
+                    {/* Timer Bar con estilo SEGA */}
+                    <div className="bg-gray-800/50 backdrop-blur rounded-lg p-4 md:p-6 border border-gray-700" style={segaStyles.segaBorder}>
                         <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-2">
                                 <Icons.Timer className="w-5 h-5" />
@@ -593,8 +715,8 @@ const CyraxCompiler = () => {
                         )}
                     </div>
 
-                    {/* Input Sequence Display */}
-                    <div className="bg-gray-800/50 backdrop-blur rounded-lg p-4 md:p-6 border border-gray-700">
+                    {/* Input Sequence Display con estilo SEGA */}
+                    <div className="bg-gray-800/50 backdrop-blur rounded-lg p-4 md:p-6" style={segaStyles.segaBorder}>
                         <h2 className="text-lg md:text-xl font-bold mb-4 flex items-center gap-2">
                             <Icons.Play className="w-5 h-5" />
                             Secuencia de Inputs
@@ -606,7 +728,7 @@ const CyraxCompiler = () => {
                                 </div>
                             ) : (
                                 inputSequence.map((input, idx) => (
-                                    <div key={idx} className="relative">
+                                    <div key={idx} className="relative" style={segaStyles.card}>
                                         <div className="bg-gradient-to-br from-blue-600 to-purple-600 rounded-lg p-3 md:p-4 shadow-lg transform hover:scale-110 transition-transform">
                                             <div className="text-2xl md:text-3xl">{getCommandIcon(input.command)}</div>
                                             <div className="text-xs mt-1 font-mono">{input.command}</div>
@@ -657,17 +779,17 @@ const CyraxCompiler = () => {
                         </div>
                     </div>
 
-                    {/* Código Fuente Generado */}
-                    <div className="bg-gray-800/50 backdrop-blur rounded-lg p-4 md:p-6 border border-gray-700">
+                    {/* Código Fuente Generado con estilo SEGA */}
+                    <div className="bg-gray-800/50 backdrop-blur rounded-lg p-4 md:p-6" style={segaStyles.segaBorder}>
                         <h2 className="text-lg md:text-xl font-bold mb-4">📝 Código Fuente Generado</h2>
                         <div className="bg-black rounded-lg p-4 font-mono text-sm overflow-x-auto">
                             {sourceCode || <span className="text-gray-500">// El código fuente aparecerá aquí...</span>}
                         </div>
                     </div>
 
-                    {/* Animation Display */}
+                    {/* Animation Display con estilo SEGA */}
                     {currentMove && (
-                        <div className={`bg-gradient-to-br ${currentMove.color} rounded-lg p-6 md:p-8 border-4 border-yellow-400 shadow-2xl relative transition-all duration-300`}>
+                        <div className={`bg-gradient-to-br ${currentMove.color} rounded-lg p-6 md:p-8 border-4 border-yellow-400 shadow-2xl relative transition-all duration-300`} style={segaStyles.segaBorder}>
                             {isAnimating && (
                                 <button
                                     onClick={() => {
@@ -717,7 +839,8 @@ const CyraxCompiler = () => {
                                                     setIsAnimating(false);
                                                     setTimeout(resetSequence, 1000);
                                                 }}
-                                                className="mt-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm transition-all duration-200 transform hover:scale-105 shadow-lg"
+                                                style={segaStyles.segaButton}
+                                                className="mt-2 px-4 py-2 rounded-lg text-sm transition-all duration-200 transform hover:scale-105 shadow-lg"
                                             >
                                                 Cerrar ahora
                                             </button>
@@ -739,31 +862,39 @@ const CyraxCompiler = () => {
                         </div>
                     )}
 
-                    {/* Test Controls */}
-                    <div className="bg-gray-800/50 backdrop-blur rounded-lg p-4 md:p-6 border border-gray-700">
+                    {/* Test Controls con estilo SEGA */}
+                    <div className="bg-gray-800/50 backdrop-blur rounded-lg p-4 md:p-6" style={segaStyles.segaBorder}>
                         <h3 className="font-bold mb-4 text-sm md:text-base">Controles de Prueba</h3>
                         <div className="grid grid-cols-4 gap-2">
                             {Object.values(buttonMap).filter((v, i, a) => a.indexOf(v) === i).map((cmd) => (
-                                <button key={cmd} onClick={() => addInput(cmd)} disabled={compilationStatus === 'success'}
-                                    className="bg-gray-700 hover:bg-gray-600 active:bg-blue-600 disabled:bg-gray-800 disabled:opacity-50 p-2 md:p-3 rounded-lg font-mono text-xs md:text-sm transition-colors">
+                                <button
+                                    key={cmd}
+                                    onClick={() => addInput(cmd)}
+                                    disabled={compilationStatus === 'success'}
+                                    style={segaStyles.inputButton}
+                                    className="hover:bg-gray-600 active:bg-blue-600 disabled:bg-gray-800 disabled:opacity-50 transition-colors"
+                                >
                                     {cmd}
                                 </button>
                             ))}
                         </div>
-                        <button onClick={resetSequence}
-                            className="w-full mt-4 bg-red-600 hover:bg-red-700 active:bg-red-800 p-2 md:p-3 rounded-lg font-bold flex items-center justify-center gap-2 text-sm md:text-base">
-                            <Icons.RotateCcw className="w-4 h-4" /> Resetear
+                        <button
+                            onClick={resetSequence}
+                            style={segaStyles.segaButton}
+                            className="w-full mt-4 p-2 md:p-3 rounded-lg font-bold flex items-center justify-center gap-2 text-sm md:text-base hover:bg-red-700 transition-colors"
+                        >
+                            Resetear
                         </button>
                     </div>
                 </div>
 
                 {/* Sidebar */}
                 <div className="space-y-6">
-                    {/* Move Reference */}
-                    <div className="bg-gray-800/50 backdrop-blur rounded-lg p-4 md:p-6 border border-gray-700">
+                    {/* Move Reference con estilo SEGA */}
+                    <div className="bg-gray-800/50 backdrop-blur rounded-lg p-4 md:p-6" style={segaStyles.segaBorder}>
                         <h2 className="text-lg md:text-xl font-bold mb-4">Movimientos de Cyrax</h2>
                         {Object.values(cyraxMoves).map((move, idx) => (
-                            <div key={idx} className="mb-4 pb-4 border-b border-gray-700 last:border-0">
+                            <div key={idx} className="mb-4 pb-4 border-b border-gray-700 last:border-0" style={segaStyles.card}>
                                 <div className={`text-xs md:text-sm font-bold mb-1 bg-gradient-to-r ${move.color} bg-clip-text text-transparent`}>
                                     {move.type}
                                 </div>
@@ -778,8 +909,8 @@ const CyraxCompiler = () => {
                         ))}
                     </div>
 
-                    {/* Compilation Log */}
-                    <div className="bg-gray-800/50 backdrop-blur rounded-lg p-4 md:p-6 border border-gray-700">
+                    {/* Compilation Log con estilo SEGA */}
+                    <div className="bg-gray-800/50 backdrop-blur rounded-lg p-4 md:p-6" style={segaStyles.segaBorder}>
                         <h2 className="text-lg md:text-xl font-bold mb-4">Log de Compilación</h2>
                         <div className="space-y-2 max-h-[400px] overflow-y-auto">
                             {logs.length === 0 ? (
@@ -795,9 +926,9 @@ const CyraxCompiler = () => {
                         </div>
                     </div>
 
-                    {/* Resultado de Compilación */}
+                    {/* Resultado de Compilación con estilo SEGA */}
                     {compilationResult && (
-                        <div className="bg-gray-800/50 backdrop-blur rounded-lg p-4 md:p-6 border border-gray-700">
+                        <div className="bg-gray-800/50 backdrop-blur rounded-lg p-4 md:p-6" style={segaStyles.segaBorder}>
                             <h2 className="text-lg md:text-xl font-bold mb-4">🔧 Resultado Compilación</h2>
                             <div className={`p-3 rounded ${compilationResult.success ? 'bg-green-900/30 text-green-300' : 'bg-red-900/30 text-red-300'}`}>
                                 <div className="font-bold mb-2">{compilationResult.success ? '✅ ÉXITO' : '❌ ERROR'}</div>
@@ -821,6 +952,11 @@ const CyraxCompiler = () => {
                     )}
                 </div>
             </div>
+
+            {/* Footer con estilo SEGA */}
+            <footer className="footer text-center mt-8 py-4 border-t border-gray-700">
+                <p style={segaStyles.footer}>TRABAJO FINAL - COMPILADORES - UNSJ © 2025</p>
+            </footer>
         </div>
     );
 };
