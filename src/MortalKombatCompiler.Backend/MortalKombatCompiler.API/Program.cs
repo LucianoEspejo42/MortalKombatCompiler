@@ -11,7 +11,7 @@ var frontendUrls = new[]
 {
     "http://localhost:3000",
     "http://localhost:5173",
-    "https://tu-frontend.netlify.app" // Reemplazar con tu URL real
+    "https://guileless-cactus-cd4696.netlify.app" // Reemplazar con tu URL real
 };
 
 builder.Services.AddCors(options =>
