@@ -1,45 +1,45 @@
-﻿using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
+﻿using MortalKombatCompiler.API.Compiler;
+using MortalKombatCompiler.API.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers();
 
-// ✅ CONFIGURACIÓN CORS COMPLETA Y ROBUSTA
+// ✅ Configuración CORS (una sola vez)
+var frontendUrls = new[]
+{
+    "http://localhost:3000",
+    "http://localhost:5173",
+    "https://guileless-cactus-cd4696.netlify.app"
+};
+
 builder.Services.AddCors(options =>
 {
-    options.AddDefaultPolicy(policy =>
+    options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins(
-            "http://localhost:3000",
-            "http://localhost:5173",
-            "https://guileless-cactus-cd4696.netlify.app",
-            "https://*.netlify.app"
-        )
-        .AllowAnyHeader()
-        .AllowAnyMethod()
-        .AllowCredentials();
-
-        // Para desarrollo, puedes descomentar esta línea:
-        policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+        policy.WithOrigins(frontendUrls)
+              .AllowAnyHeader()
+              .AllowAnyMethod();
     });
 });
 
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
 var app = builder.Build();
 
-// ✅ CONFIGURACIÓN DEL PIPELINE - ORDEN CRÍTICO
-app.UseCors(); // Esto debe ir PRIMERO
+// Usar la política de CORS antes de MapControllers
+app.UseCors("AllowFrontend");
 
 if (app.Environment.IsDevelopment())
 {
-    app.UseDeveloperExceptionPage();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 
-app.UseRouting();
+app.UseHttpsRedirection();
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();
