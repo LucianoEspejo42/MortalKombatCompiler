@@ -1,4 +1,4 @@
-using MortalKombatCompiler.API.Compiler;
+﻿using MortalKombatCompiler.API.Compiler;
 using MortalKombatCompiler.API.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -6,55 +6,40 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllers();
 
-// Configuraci�n CORS para producci�n
+// ✅ Configuración CORS (una sola vez)
 var frontendUrls = new[]
 {
     "http://localhost:3000",
     "http://localhost:5173",
-    "https://guileless-cactus-cd4696.netlify.app" // Reemplazar con tu URL real
+    "https://guileless-cactus-cd4696.netlify.app"
 };
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowProduction",
-        policy =>
-        {
-            policy.WithOrigins(frontendUrls)
-                  .AllowAnyHeader()
-                  .AllowAnyMethod();
-        });
-});
-
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-
-// Add CORS
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowReactApp", policy =>
+    options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "http://localhost:3000", "http://localhost:5174")
+        policy.WithOrigins(frontendUrls)
               .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+              .AllowAnyMethod();
     });
 });
 
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Usar la política de CORS antes de MapControllers
+app.UseCors("AllowFrontend");
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseCors("AllowReactApp");
-
 app.UseHttpsRedirection();
 app.UseAuthorization();
-app.UseCors("AllowProduction");
 app.MapControllers();
 
 app.Run();
