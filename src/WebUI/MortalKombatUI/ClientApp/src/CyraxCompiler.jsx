@@ -89,7 +89,7 @@ const CyraxCompiler = () => {
     };
 
     const compileWithCSharp = async (sourceCode) => {
-        const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+        const API_URL = import.meta.env.production.VITE_API_URL || 'http://localhost:8080';
 
         console.log('🔧 [3.1] compileWithCSharp INICIADO con:', sourceCode);
         console.log('🌐 Usando API URL:', API_URL);
