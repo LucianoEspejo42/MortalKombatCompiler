@@ -11,7 +11,7 @@ const CyraxCompiler = () => {
     const [inputSequence, setInputSequence] = useState([]);
     const [currentMove, setCurrentMove] = useState(null);
     const [compilationStatus, setCompilationStatus] = useState('idle');
-    const [timeRemaining, setTimeRemaining] = useState(2000);
+    const [timeRemaining, setTimeRemaining] = useState(5000); // Aumentado a 5 segundos
     const [isAnimating, setIsAnimating] = useState(false);
     const [logs, setLogs] = useState([]);
     const [stats, setStats] = useState({ attempts: 0, success: 0, failed: 0 });
@@ -134,26 +134,44 @@ const CyraxCompiler = () => {
         }
 
         if (result.success) {
-            console.log('✅ [9] Resultado exitoso, buscando movimiento...');
-            const move = Object.values(cyraxMoves).find(m =>
+            console.log('✅ [9] Resultado exitoso, procesando movimiento...');
+
+            // BUSCAR MOVIMIENTO CONOCIDO O CREAR UNO PERSONALIZADO
+            let move = Object.values(cyraxMoves).find(m =>
                 m.name === result.moveName && m.type === result.moveType
             );
 
-            console.log('🔍 [10] Movimiento encontrado:', move);
-
-            if (move) {
-                console.log('🎬 [11] Configurando estado para animación...');
-                setCurrentMove(move);
-                setCompilationStatus('success');
-                setIsAnimating(true);
-                setStats(prev => ({ ...prev, success: prev.success + 1, attempts: prev.attempts + 1 }));
-                addLog(`✅ ${result.moveType} COMPILADO: ${result.moveName}`, 'success');
-                addNotification(`🎉 ¡${result.moveType} EJECUTADO!`, 'success', 5000);
-                playSound();
-                console.log('🎉 [12] Animación iniciada para:', move.name);
-            } else {
-                console.log('❌ [13] Movimiento no encontrado en cyraxMoves');
+            // Si no encuentra movimiento conocido, crear uno personalizado
+            if (!move) {
+                console.log('🔧 Creando movimiento personalizado...');
+                move = {
+                    name: result.moveName || "CUSTOM",
+                    type: result.moveType || "CUSTOM",
+                    sequence: result.validatedSequence?.map(i => i.command) || inputSequence.map(i => i.command),
+                    color: "from-gray-600 to-blue-600",
+                    description: "Movimiento personalizado compilado exitosamente",
+                    animation: null,
+                    duration: 5000
+                };
             }
+
+            console.log('🔍 [10] Movimiento configurado:', move);
+
+            // CONFIGURAR ESTADO PARA MOSTRAR RESULTADO
+            setCurrentMove(move);
+            setCompilationStatus('success');
+
+            // Solo animar si es un movimiento conocido con GIF
+            if (move.animation) {
+                setIsAnimating(true);
+            }
+
+            setStats(prev => ({ ...prev, success: prev.success + 1, attempts: prev.attempts + 1 }));
+            addLog(`✅ ${result.moveType} COMPILADO: ${result.moveName}`, 'success');
+            addNotification(`🎉 ¡${result.moveType} COMPILADO!`, 'success', 5000);
+            playSound();
+            console.log('🎉 [12] Resultado procesado para:', move.name);
+
         } else {
             console.log('❌ [14] Resultado fallido:', result.errors);
             setCompilationStatus('error');
@@ -170,16 +188,10 @@ const CyraxCompiler = () => {
         const now = Date.now();
         const timeSinceLast = startTimeRef.current ? now - startTimeRef.current : 0;
 
-        if (inputSequence.length > 0 && timeSinceLast > 2000) {
-            addLog(`❌ Timeout excedido: ${timeSinceLast}ms entre inputs`, 'error');
-            setCompilationStatus('error');
-            setStats(prev => ({ ...prev, failed: prev.failed + 1, attempts: prev.attempts + 1 }));
-
-            setTimeout(() => {
-                resetSequence();
-            }, 2000);
-            return;
-        }
+        // ELIMINADO: Validación de timeout que impedía la compilación
+        // if (i > 0 && input.TimingMs > 2000) {
+        //     result.Errors.Add($"Timeout excedido en input {i + 1}: {input.TimingMs}ms");
+        // }
 
         if (timeSinceLast > 0 && timeSinceLast < 300) {
             addNotification(`⚡ Input rápido: ${command} (${timeSinceLast}ms)`, 'info', 1500);
@@ -329,6 +341,8 @@ const CyraxCompiler = () => {
         const commands = sequence.map(inp => inp.command);
         console.log('🔍 Verificando secuencia:', commands);
 
+        let moveFound = false;
+
         for (const [key, move] of Object.entries(cyraxMoves)) {
             console.log(`🔍 Comparando con: ${move.name}`, move.sequence);
 
@@ -336,6 +350,7 @@ const CyraxCompiler = () => {
                 console.log(`✅ Secuencia COMPLETA detectada: ${move.name}`);
                 addNotification(`🎯 ${move.type} DETECTADO: ${move.name}`, 'success', 4000);
                 addLog(`✅ ${move.type} detectado: ${move.name}`, 'success');
+                moveFound = true;
 
                 setTimeout(() => {
                     handleSequenceComplete(sequence);
@@ -354,19 +369,14 @@ const CyraxCompiler = () => {
             }
         }
 
-        if (commands.length >= 5 && !isValidPrefixForAnyMove(commands)) {
-            console.log('❌ Secuencia inválida detectada');
-            addNotification('❌ Secuencia inválida - Continúa o espera timeout', 'error', 3000);
+        // Si no es un movimiento conocido pero la secuencia es larga, compilar automáticamente
+        if (commands.length >= 4 && !moveFound) {
+            console.log('📝 Secuencia personalizada detectada - Compilando...');
+            addNotification('🔧 Secuencia personalizada - Compilando...', 'info', 3000);
+            setTimeout(() => {
+                handleSequenceComplete(sequence);
+            }, 500);
         }
-    };
-
-    const isValidPrefixForAnyMove = (commands) => {
-        for (const move of Object.values(cyraxMoves)) {
-            if (isValidPrefix(commands, move.sequence)) {
-                return true;
-            }
-        }
-        return false;
     };
 
     const handleTimeout = () => {
@@ -387,7 +397,7 @@ const CyraxCompiler = () => {
         setInputSequence([]);
         setCurrentMove(null);
         setCompilationStatus('idle');
-        setTimeRemaining(2000);
+        setTimeRemaining(5000); // Actualizado a 5 segundos
         setSourceCode('');
         setCompilationResult(null);
         startTimeRef.current = null;
@@ -423,7 +433,7 @@ const CyraxCompiler = () => {
             />
         ),
         mk3Image: ({ className }) => (
-            <img 
+            <img
                 src={mk_Image}
                 className={className}
                 alt="Mortal Kombat 3 Logo"
@@ -431,7 +441,6 @@ const CyraxCompiler = () => {
                     width: '9rem',
                     height: '8rem',
                     objectFit: 'contain',
-                    //paddingrigth: '25rem'
                 }}
             />
         ),
@@ -440,7 +449,6 @@ const CyraxCompiler = () => {
         CheckCircle: ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" strokeWidth="2" /><path d="M9 12l2 2 4-4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>),
         XCircle: ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" strokeWidth="2" /><path d="M15 9l-6 6M9 9l6 6" strokeWidth="2" strokeLinecap="round" /></svg>),
         Play: ({ className }) => (<svg className={className} fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>),
-        //RotateCcw: ({ className }) => (<svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M1 4v6h6M23 20v-6h-6" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>)
     };
 
     const startTimeout = () => {
@@ -448,7 +456,7 @@ const CyraxCompiler = () => {
         const startTime = Date.now();
         timeoutRef.current = setInterval(() => {
             const elapsed = Date.now() - startTime;
-            const remaining = Math.max(0, 2000 - elapsed);
+            const remaining = Math.max(0, 5000 - elapsed); // 5 segundos
             setTimeRemaining(remaining);
             if (remaining === 0) handleTimeout();
         }, 50);
@@ -457,7 +465,7 @@ const CyraxCompiler = () => {
     const resetTimeout = () => {
         if (timeoutRef.current) {
             clearInterval(timeoutRef.current);
-            setTimeRemaining(2000);
+            setTimeRemaining(5000); // 5 segundos
             startTimeout();
         }
     };
@@ -543,20 +551,37 @@ const CyraxCompiler = () => {
 
     useEffect(() => {
         if (isAnimating && currentMove) {
-            console.log(`🎬 Iniciando animación suave para: ${currentMove.name}`);
-            const animationDuration = currentMove.duration || 10000;
+            console.log(`🎬 Iniciando animación para: ${currentMove.name}`);
 
-            const timer = setTimeout(() => {
-                console.log(`⏹️ Finalizando animación de ${currentMove.name}`);
-                setIsAnimating(false);
-                setTimeout(() => {
-                    resetSequence();
-                }, 800);
-            }, animationDuration);
+            // Solo animar si hay un GIF específico
+            if (currentMove.animation) {
+                const animationDuration = currentMove.duration || 10000;
 
-            return () => {
-                clearTimeout(timer);
-            };
+                const timer = setTimeout(() => {
+                    console.log(`⏹️ Finalizando animación de ${currentMove.name}`);
+                    setIsAnimating(false);
+                    setTimeout(() => {
+                        resetSequence();
+                    }, 800);
+                }, animationDuration);
+
+                return () => {
+                    clearTimeout(timer);
+                };
+            } else {
+                // Para movimientos personalizados, mostrar por menos tiempo
+                const timer = setTimeout(() => {
+                    console.log(`⏹️ Finalizando visualización de movimiento personalizado`);
+                    setIsAnimating(false);
+                    setTimeout(() => {
+                        resetSequence();
+                    }, 1000);
+                }, 4000);
+
+                return () => {
+                    clearTimeout(timer);
+                };
+            }
         }
     }, [isAnimating, currentMove]);
 
@@ -566,14 +591,13 @@ const CyraxCompiler = () => {
             backgroundImage: "url('https://cdn.pixabay.com/photo/2017/08/30/01/05/milky-way-2695569_1280.jpg')",
             backgroundSize: 'cover',
             backgroundPosition: 'center',
-            backgroundAttachment: 'fixed', 
+            backgroundAttachment: 'fixed',
             color: '#f1f1f1',
             minHeight: '100vh',
             padding: '1rem'
         },
         header: {
             backgroundColor: 'rgba(0, 0, 0, 0.5)',
-            //borderBottom: '4px solid #ffd700',
             padding: '1rem',
             marginBottom: '2rem',
             boxShadow: '0 0 60px rgba(255, 215, 0, 0.6)'
@@ -586,12 +610,10 @@ const CyraxCompiler = () => {
             fontFamily: "'Press Start 2P', cursive",
             textAlign: 'center',
             marginBottom: '1rem',
-
         },
-        subtitle: { 
+        subtitle: {
             fontSize: '1rem',
             color: '#00ffff',
-            
             marginBottom: '0.5rem',
             textShadow: '2px 2px 0px #000000',
             fontFamily: "'Press Start 2P', cursive",
@@ -696,21 +718,21 @@ const CyraxCompiler = () => {
                                     }
                                 </span>
                             </div>
-                            <span className={`text-xl md:text-2xl font-mono ${timeRemaining < 500 ? 'text-red-500 animate-pulse' : ''}`}>
+                            <span className={`text-xl md:text-2xl font-mono ${timeRemaining < 1000 ? 'text-red-500 animate-pulse' : ''}`}>
                                 {(timeRemaining / 1000).toFixed(2)}s
                             </span>
                         </div>
                         <div className="h-3 bg-gray-700 rounded-full overflow-hidden">
                             <div
-                                className={`h-full transition-all duration-100 ${timeRemaining > 1000 ? 'bg-green-500' :
-                                    timeRemaining > 500 ? 'bg-yellow-500 animate-pulse' : 'bg-red-500 animate-pulse'
+                                className={`h-full transition-all duration-100 ${timeRemaining > 3000 ? 'bg-green-500' :
+                                    timeRemaining > 1000 ? 'bg-yellow-500 animate-pulse' : 'bg-red-500 animate-pulse'
                                     }`}
-                                style={{ width: `${(timeRemaining / 2000) * 100}%` }}
+                                style={{ width: `${(timeRemaining / 5000) * 100}%` }}
                             />
                         </div>
-                        {timeRemaining < 1000 && inputSequence.length > 0 && (
+                        {timeRemaining < 2000 && inputSequence.length > 0 && (
                             <div className="mt-3 text-center text-sm text-yellow-400 animate-pulse">
-                                ⚠️ {timeRemaining < 500 ? '¡PRESIONA OTRO BOTÓN!' : 'Tiempo corriendo...'}
+                                ⚠️ {timeRemaining < 1000 ? '¡PRESIONA OTRO BOTÓN!' : 'Tiempo corriendo...'}
                             </div>
                         )}
                     </div>
@@ -811,6 +833,7 @@ const CyraxCompiler = () => {
                                 <h3 className="text-xl md:text-2xl font-semibold mb-2 text-white drop-shadow-lg">{currentMove.name}</h3>
                                 <p className="text-sm md:text-base text-gray-200 mb-4 drop-shadow">{currentMove.description}</p>
 
+                                {/* MOSTRAR ANIMACIÓN SOLO PARA MOVIMIENTOS CONOCIDOS */}
                                 {isAnimating && currentMove.animation && (
                                     <div className="my-6 transition-all duration-500 transform">
                                         <div className="relative inline-block">
@@ -848,13 +871,26 @@ const CyraxCompiler = () => {
                                     </div>
                                 )}
 
+                                {/* PARA MOVIMIENTOS PERSONALIZADOS */}
                                 {isAnimating && !currentMove.animation && (
                                     <div className="my-6">
-                                        <div className="text-4xl md:text-6xl mt-6 animate-bounce-slow">
-                                            💀☠️💀
+                                        <div className="text-6xl mb-4">⚡</div>
+                                        <div className="text-2xl font-bold text-white mb-2">MOVIMIENTO PERSONALIZADO</div>
+                                        <div className="text-lg text-yellow-300 mb-4">Compilado exitosamente</div>
+
+                                        <div className="bg-black bg-opacity-50 p-4 rounded-lg mb-4">
+                                            <div className="text-sm text-gray-300 mb-2">Secuencia ejecutada:</div>
+                                            <div className="flex flex-wrap gap-2 justify-center">
+                                                {currentMove.sequence.map((cmd, idx) => (
+                                                    <span key={idx} className="bg-gray-700 px-3 py-1 rounded text-sm font-mono">
+                                                        {cmd}
+                                                    </span>
+                                                ))}
+                                            </div>
                                         </div>
-                                        <div className="text-sm text-yellow-300 mt-4 bg-black bg-opacity-50 px-3 py-2 rounded-lg">
-                                            Animación no disponible - Mostrando efectos alternativos
+
+                                        <div className="text-xs text-gray-300 bg-black bg-opacity-50 px-3 py-1 rounded-full">
+                                            Código intermedio generado correctamente
                                         </div>
                                     </div>
                                 )}

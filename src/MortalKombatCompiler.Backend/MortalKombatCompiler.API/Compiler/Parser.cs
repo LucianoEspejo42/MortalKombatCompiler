@@ -103,11 +103,13 @@ namespace MortalKombatCompiler.API.Compiler
 
             // Identificar movimiento
             var commands = inputSequence.Select(i => i.Command).ToList();
+            bool moveFound = false;
 
             foreach (var move in cyraxMoves)
             {
                 if (commands.SequenceEqual(move.Value))
                 {
+                    moveFound = true;
                     result.Success = true;
                     result.ValidatedSequence = inputSequence;
 
@@ -127,13 +129,20 @@ namespace MortalKombatCompiler.API.Compiler
                         result.MoveName = "CYRAX";
                     }
 
-                    GenerateIntermediateCode();
-                    return;
+                    break;
                 }
             }
 
-            result.Success = false;
-            result.Errors.Add("Secuencia no coincide con ningún movimiento conocido");
+            if (!moveFound)
+            {
+                // No es un movimiento conocido, pero aún así es una secuencia válida
+                result.Success = true;
+                result.ValidatedSequence = inputSequence;
+                result.MoveType = "CUSTOM";
+                result.MoveName = "Unknown Move";
+            }
+
+            GenerateIntermediateCode();
         }
 
         private void GenerateIntermediateCode()
