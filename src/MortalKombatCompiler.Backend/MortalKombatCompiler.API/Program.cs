@@ -11,7 +11,7 @@ var frontendUrls = new[]
 {
     "http://localhost:3000",
     "http://localhost:5173",
-    "https://guileless-cactus-cd4696.netlify.app"
+    "https://mortal-kombat-compiler.netlify.app"
 };
 
 builder.Services.AddCors(options =>
