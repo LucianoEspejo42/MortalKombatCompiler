@@ -21,8 +21,6 @@ const CyraxCompiler = () => {
     const [sourceCode, setSourceCode] = useState('');
     const [compilationResult, setCompilationResult] = useState(null);
     const [notifications, setNotifications] = useState([]);
-    const [pendingCompilation, setPendingCompilation] = useState(false); // ← NUEVO
-    const [sequenceHistory, setSequenceHistory] = useState([]); // ← NUEVO: para múltiples secuencias
 
     const timeoutRef = useRef(null);
     const startTimeRef = useRef(null);
@@ -177,10 +175,30 @@ const CyraxCompiler = () => {
     };
 
     const addInput = (command) => {
-        if (compilationStatus === 'success' || pendingCompilation) return;
+        if (compilationStatus === 'success') return;
 
         const now = Date.now();
         const timeSinceLast = startTimeRef.current ? now - startTimeRef.current : 0;
+
+        if (inputSequence.length > 0 && timeSinceLast > 2000) {
+            addLog(`❌ Timeout excedido: ${timeSinceLast}ms entre inputs`, 'error');
+            //setCompilationStatus('error');
+            // MOSTRAR GIF DE ERROR POR TIMEOUT ENTRE INPUTS
+            const errorMove = cyraxMoves.error;
+            setCurrentMove(errorMove);
+            setCompilationStatus('error');
+            setIsAnimating(true);
+            setStats(prev => ({ ...prev, failed: prev.failed + 1, attempts: prev.attempts + 1 }));
+
+            setTimeout(() => {
+                resetSequence();
+            }, 5000);
+            return;
+        }
+
+        if (timeSinceLast > 0 && timeSinceLast < 300) {
+            addNotification(`⚡ Input rápido: ${command} (${timeSinceLast}ms)`, 'info', 1500);
+        }
 
         if (inputSequence.length === 0) {
             startTimeRef.current = now;
@@ -198,14 +216,14 @@ const CyraxCompiler = () => {
 
         const newSequence = [...inputSequence, newInput];
         setInputSequence(newSequence);
+        setCompilationStatus('compiling');
 
         addLog(`Input: ${command} (${timeSinceLast}ms)`, 'info');
 
         const newSourceCode = generateSourceCode(newSequence);
         setSourceCode(newSourceCode);
 
-        // SOLO verificar prefijos para feedback, NO compilar automáticamente
-        checkSequencePrefix(newSequence);
+        checkSequence(newSequence);
     };
 
     const generateSourceCode = (sequence) => {
@@ -330,23 +348,38 @@ const CyraxCompiler = () => {
         console.log('✅ [6] handleSequenceComplete FINALIZADO');
     };
 
-    const checkSequencePrefix = (sequence) => {
+    const checkSequence = (sequence) => {
         const commands = sequence.map(inp => inp.command);
+        console.log('🔍 Verificando secuencia:', commands);
 
-        // Solo dar feedback de progreso, NO compilar
-        for (const move of Object.values(cyraxMoves)) {
+        for (const [key, move] of Object.entries(cyraxMoves)) {
+            console.log(`🔍 Comparando con: ${move.name}`, move.sequence);
+
+            if (arraysEqual(commands, move.sequence)) {
+                console.log(`✅ Secuencia COMPLETA detectada: ${move.name}`);
+                addNotification(`🎯 ${move.type} DETECTADO: ${move.name}`, 'success', 4000);
+                addLog(`✅ ${move.type} detectado: ${move.name}`, 'success');
+
+                setTimeout(() => {
+                    handleSequenceComplete(sequence);
+                }, 100);
+                return;
+            }
+
             if (isValidPrefix(commands, move.sequence)) {
+                console.log(`📝 Prefijo válido para: ${move.name}, continuando...`);
+
                 if (commands.length >= 3) {
                     const progress = `${commands.length}/${move.sequence.length}`;
-                    addNotification(`📈 ${move.name}: ${progress} completado`, 'info', 1500);
+                    addNotification(`📈 ${move.name}: ${progress} completado`, 'info', 2000);
                 }
                 return;
             }
         }
 
-        // Si no es prefijo válido de ningún movimiento, dar advertencia
-        if (commands.length >= 4 && !isValidPrefixForAnyMove(commands)) {
-            addNotification('⚠️ Secuencia no reconocida - Usa "Compilar y ejecutar"', 'warning', 2000);
+        if (commands.length >= 5 && !isValidPrefixForAnyMove(commands)) {
+            console.log('❌ Secuencia inválida detectada');
+            addNotification('❌ Secuencia inválida - Continúa o espera timeout', 'error', 3000);
         }
     };
 
@@ -366,9 +399,18 @@ const CyraxCompiler = () => {
         }
 
         if (inputSequence.length > 0) {
-            // Solo notificación visual, NO compila automáticamente
-            addLog(`⏱️ Tiempo agotado - Usa "Compilar y ejecutar"`, 'warning');
-            addNotification('⏱️ Tiempo agotado - Listo para compilar', 'info', 3000);
+            console.log('⏱️ Timeout - Mostrando error');
+
+            // MOSTRAR GIF DE ERROR POR TIMEOUT
+            const errorMove = cyraxMoves.error;
+            setCurrentMove(errorMove);
+            setCompilationStatus('error');
+            setIsAnimating(true);
+            setStats(prev => ({ ...prev, failed: prev.failed + 1, attempts: prev.attempts + 1 }));
+
+            addLog(`⏱️ Timeout - ${inputSequence.length} inputs no completados`, 'error');
+            addNotification('⏱️ ¡Tiempo agotado!', 'error', 4000);
+            playSound();
         }
     };
 
@@ -513,119 +555,6 @@ const CyraxCompiler = () => {
         };
     }, [gamepadConnected, inputSequence, compilationStatus, debounceTime]);
 
-    const handleCompileAndExecute = async () => {
-        console.log('🚀 [COMPILADOR] Iniciando compilación y ejecución...');
-
-        if (inputSequence.length === 0) {
-            addNotification('❌ No hay secuencia para compilar', 'error', 3000);
-            return;
-        }
-
-        setPendingCompilation(true);
-        setCompilationStatus('compiling');
-
-        // Limpiar timeout si existe
-        if (timeoutRef.current) {
-            clearInterval(timeoutRef.current);
-            timeoutRef.current = null;
-        }
-
-        // Verificar timeout global (más de 2000ms entre inputs)
-        const hasTimeout = inputSequence.some((input, index) => {
-            if (index > 0 && input.millisecondsSincePrevious > 2000) {
-                addLog(`⏰ TIMEOUT DETECTADO: ${input.millisecondsSincePrevious}ms entre inputs`, 'error');
-                return true;
-            }
-            return false;
-        });
-
-        // Verificar debounce (menos de 50ms entre inputs)
-        const hasDebounceError = inputSequence.some((input, index) => {
-            if (index > 0 && input.millisecondsSincePrevious < 50) {
-                addLog(`⚡ DEBOUNCE ERROR: ${input.millisecondsSincePrevious}ms entre inputs`, 'error');
-                return true;
-            }
-            return false;
-        });
-
-        if (hasTimeout || hasDebounceError) {
-            // ERROR: Mostrar GIF de error
-            const errorMove = cyraxMoves.error;
-            setCurrentMove(errorMove);
-            setCompilationStatus('error');
-            setIsAnimating(true);
-            setStats(prev => ({ ...prev, failed: prev.failed + 1, attempts: prev.attempts + 1 }));
-
-            const errorType = hasTimeout ? 'TIMEOUT' : 'INPUT DEMASIADO RÁPIDO';
-            addLog(`❌ ${errorType}: Compilación fallida`, 'error');
-            addNotification(`💥 ${errorType}`, 'error', 4000);
-            playSound();
-
-            setPendingCompilation(false);
-            return;
-        }
-
-        // Generar código fuente para la compilación
-        const finalSourceCode = generateSourceCode(inputSequence);
-        console.log('📝 [COMPILADOR] Código fuente generado:', finalSourceCode);
-
-        setSourceCode(finalSourceCode);
-        addLog(`📤 Compilando ${inputSequence.length} inputs...`, 'info');
-        addNotification('🔧 Compilando secuencia...', 'info', 2000);
-
-        try {
-            const result = await compileWithCSharp(finalSourceCode);
-            console.log('🎉 [COMPILADOR] Resultado recibido:', result);
-
-            setCompilationResult(result);
-
-            if (result.success) {
-                // ÉXITO: Buscar y ejecutar movimiento
-                const move = Object.values(cyraxMoves).find(m =>
-                    m.name === result.moveName && m.type === result.moveType
-                );
-
-                if (move) {
-                    setCurrentMove(move);
-                    setCompilationStatus('success');
-                    setIsAnimating(true);
-                    setStats(prev => ({ ...prev, success: prev.success + 1, attempts: prev.attempts + 1 }));
-                    addLog(`✅ ${result.moveType} COMPILADO: ${result.moveName}`, 'success');
-                    addNotification(`🎉 ¡${result.moveType} EJECUTADO!`, 'success', 5000);
-                    playSound();
-                } else {
-                    // Movimiento no reconocido - NO es error, solo mensaje
-                    addLog(`⚠️ Movimiento no reconocido: ${result.moveName}`, 'warning');
-                    addNotification('🔍 Movimiento no reconocido - Código generado', 'info', 3000);
-                    setCompilationStatus('idle');
-                }
-            } else {
-                // Error del compilador backend
-                const errorMove = cyraxMoves.error;
-                setCurrentMove(errorMove);
-                setCompilationStatus('error');
-                setIsAnimating(true);
-                setStats(prev => ({ ...prev, failed: prev.failed + 1, attempts: prev.attempts + 1 }));
-                addLog(`❌ Error de compilación: ${result.errors?.join(', ')}`, 'error');
-                addNotification(`💥 Error de compilación`, 'error', 4000);
-                playSound();
-            }
-        } catch (error) {
-            console.error('❌ [COMPILADOR] Error:', error);
-            const errorMove = cyraxMoves.error;
-            setCurrentMove(errorMove);
-            setCompilationStatus('error');
-            setIsAnimating(true);
-            setStats(prev => ({ ...prev, failed: prev.failed + 1, attempts: prev.attempts + 1 }));
-            addLog(`❌ Error de conexión: ${error.message}`, 'error');
-            addNotification('💥 Error de conexión con el compilador', 'error', 4000);
-            playSound();
-        }
-
-        setPendingCompilation(false);
-        console.log('🏁 [COMPILADOR] Proceso finalizado');
-    };
-
     useEffect(() => {
         const handleConnect = (e) => {
             setGamepadConnected(true);
@@ -661,7 +590,6 @@ const CyraxCompiler = () => {
             };
         }
     }, [isAnimating, currentMove]);
-
 
     // Estilos SEGA Genesis del index.html
     const segaStyles = {
@@ -795,7 +723,7 @@ const CyraxCompiler = () => {
                                 <span className="font-semibold text-sm md:text-base">
                                     {inputSequence.length === 0 ?
                                         'Esperando primer input' :
-                                        'Tiempo máximo entre inputs'
+                                        'Tiempo para próximo input'
                                     }
                                 </span>
                             </div>
@@ -824,7 +752,6 @@ const CyraxCompiler = () => {
                             <Icons.Play className="w-5 h-5" />
                             Secuencia de Inputs
                         </h2>
-
                         <div className="flex flex-wrap gap-2 md:gap-3 min-h-[100px] justify-center md:justify-start">
                             {inputSequence.length === 0 ? (
                                 <div className="w-full text-center py-8 text-gray-500 text-sm md:text-base">
@@ -847,45 +774,12 @@ const CyraxCompiler = () => {
                             )}
                         </div>
 
-                        {/* BOTÓN COMPILAR Y EJECUTAR - NUEVA POSICIÓN */}
-                        {inputSequence.length > 0 && (
-                            <div className="mt-6 flex justify-center">
-                                <button
-                                    onClick={handleCompileAndExecute}
-                                    disabled={pendingCompilation}
-                                    style={{
-                                        ...segaStyles.segaButton,
-                                        background: 'linear-gradient(to bottom, #00cc00, #009900)',
-                                        padding: '0.75rem 2rem',
-                                        fontSize: '1rem'
-                                    }}
-                                    className="rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-green-700 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed transform hover:scale-105 transition-transform"
-                                >
-                                    {pendingCompilation ? (
-                                        <>
-                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                            Compilando...
-                                        </>
-                                    ) : (
-                                        <>
-                                            🚀 Compilar y Ejecutar
-                                        </>
-                                    )}
-                                </button>
-                            </div>
-                        )}
-
                         {/* Status Indicator */}
                         <div className="mt-6 flex items-center justify-center gap-3">
                             {compilationStatus === 'idle' && (
                                 <div className="flex items-center gap-2 text-gray-400">
                                     <div className="w-3 h-3 bg-gray-500 rounded-full" />
-                                    <span className="text-sm md:text-base">
-                                        {inputSequence.length === 0
-                                            ? 'Esperando inputs...'
-                                            : 'Listo para compilar'
-                                        }
-                                    </span>
+                                    <span className="text-sm md:text-base">Esperando inputs...</span>
                                 </div>
                             )}
                             {compilationStatus === 'compiling' && (
@@ -1007,7 +901,7 @@ const CyraxCompiler = () => {
                                 <button
                                     key={cmd}
                                     onClick={() => addInput(cmd)}
-                                    disabled={compilationStatus === 'success' || pendingCompilation}
+                                    disabled={compilationStatus === 'success'}
                                     style={segaStyles.inputButton}
                                     className="hover:bg-gray-600 active:bg-blue-600 disabled:bg-gray-800 disabled:opacity-50 transition-colors"
                                 >
@@ -1015,13 +909,12 @@ const CyraxCompiler = () => {
                                 </button>
                             ))}
                         </div>
-
                         <button
                             onClick={resetSequence}
                             style={segaStyles.segaButton}
-                            className="w-full mt-2 p-2 md:p-3 rounded-lg font-bold flex items-center justify-center gap-2 text-sm md:text-base hover:bg-red-700 transition-colors"
+                            className="w-full mt-4 p-2 md:p-3 rounded-lg font-bold flex items-center justify-center gap-2 text-sm md:text-base hover:bg-red-700 transition-colors"
                         >
-                            🔄 Resetear
+                            Resetear
                         </button>
                     </div>
                 </div>

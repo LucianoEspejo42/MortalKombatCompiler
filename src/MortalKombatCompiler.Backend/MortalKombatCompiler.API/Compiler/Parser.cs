@@ -1,7 +1,8 @@
-using System;
+ï»¿using System;
 using System.Collections.Generic;
 using System.Linq;
-using MortalKombatCompiler.API.Models;
+using MortalKombatCompiler.API.Models;  
+using MortalKombatCompiler.API.Compiler;                         
 
 namespace MortalKombatCompiler.API.Compiler
 {
@@ -10,17 +11,18 @@ namespace MortalKombatCompiler.API.Compiler
         private readonly Scanner scanner;
         private Token currentToken;
 
-        // Variables del parser
         public List<TimedInput> inputSequence = new List<TimedInput>();
         public CompilationResult result = new CompilationResult();
 
-        // Movimientos de Cyrax
+        private const int TIMEOUT_MS = 2000;
+        private const int DEBOUNCE_MS = 50;
+
         private readonly Dictionary<string, List<string>> cyraxMoves = new Dictionary<string, List<string>>
         {
             { "FATALITY_SELF_DESTRUCT", new List<string> { "DOWN", "DOWN", "UP", "DOWN", "HP" } },
             { "FATALITY_HELICOPTER", new List<string> { "DOWN", "DOWN", "FORWARD", "UP", "RUN" } },
             { "BRUTALITY_CYRAX", new List<string> { "HP", "LK", "HK", "HK", "LP", "LP", "HP", "LP", "LK", "HK", "LK" } },
-            { "FRIENDSHIP", new List<string> {"RUN", "RUN", "RUN", "UP"}}
+            { "FRIENDSHIP", new List<string> { "RUN", "RUN", "RUN", "UP" } }
         };
 
         public Parser(Scanner scanner)
@@ -45,13 +47,13 @@ namespace MortalKombatCompiler.API.Compiler
 
         private void ParseSequence()
         {
-            // Esperar SEQ_START
             if (currentToken.val != "SEQUENCE_START")
                 throw new Exception("Se esperaba SEQUENCE_START");
-            currentToken = scanner.Scan();
 
-            // Parsear comandos hasta SEQ_END
-            while (currentToken.val != "SEQUENCE_END" && currentToken.kind != 0) // 0 = EOF
+            currentToken = scanner.Scan();
+            inputSequence.Clear();
+
+            while (currentToken.val != "SEQUENCE_END" && currentToken.kind != 0)
             {
                 ParseTimedInput();
             }
@@ -65,13 +67,11 @@ namespace MortalKombatCompiler.API.Compiler
             string command = currentToken.val;
             int timing = 0;
 
-            // Avanzar al siguiente token
             currentToken = scanner.Scan();
 
-            // Verificar si hay timing
             if (currentToken.kind == 13) // TIMING token
             {
-                var timingStr = currentToken.val.Substring(2); // Remover "T:"
+                var timingStr = currentToken.val.Substring(2);
                 timing = int.Parse(timingStr);
                 currentToken = scanner.Scan();
             }
@@ -85,31 +85,23 @@ namespace MortalKombatCompiler.API.Compiler
 
         private void ValidateAndIdentifyMove()
         {
-            // Validar timings
             for (int i = 0; i < inputSequence.Count; i++)
             {
                 var input = inputSequence[i];
 
-                if (i > 0 && input.TimingMs > 2000)
-                {
+                if (i > 0 && input.TimingMs > TIMEOUT_MS)
                     result.Errors.Add($"Timeout excedido en input {i + 1}: {input.TimingMs}ms");
-                }
 
-                if (i > 0 && input.TimingMs < 50)
-                {
-                    result.Errors.Add($"Inputs demasiado rápidos en posición {i + 1}: {input.TimingMs}ms");
-                }
+                if (i > 0 && input.TimingMs < DEBOUNCE_MS)
+                    result.Errors.Add($"Inputs demasiado rÃ¡pidos en posiciÃ³n {i + 1}: {input.TimingMs}ms");
             }
 
-            // Identificar movimiento
             var commands = inputSequence.Select(i => i.Command).ToList();
-            bool moveFound = false;
 
             foreach (var move in cyraxMoves)
             {
                 if (commands.SequenceEqual(move.Value))
                 {
-                    moveFound = true;
                     result.Success = true;
                     result.ValidatedSequence = inputSequence;
 
@@ -129,20 +121,13 @@ namespace MortalKombatCompiler.API.Compiler
                         result.MoveName = "CYRAX";
                     }
 
-                    break;
+                    GenerateIntermediateCode();
+                    return;
                 }
             }
 
-            if (!moveFound)
-            {
-                // No es un movimiento conocido, pero aún así es una secuencia válida
-                result.Success = true;
-                result.ValidatedSequence = inputSequence;
-                result.MoveType = "CUSTOM";
-                result.MoveName = "Unknown Move";
-            }
-
-            GenerateIntermediateCode();
+            result.Success = false;
+            result.Errors.Add("Secuencia no coincide con ningÃºn movimiento conocido");
         }
 
         private void GenerateIntermediateCode()
@@ -150,7 +135,7 @@ namespace MortalKombatCompiler.API.Compiler
             if (!result.Success) return;
 
             var code = new System.Text.StringBuilder();
-            code.AppendLine("// CÓDIGO INTERMEDIO GENERADO");
+            code.AppendLine("// CÃ“DIGO INTERMEDIO GENERADO");
             code.AppendLine($"// Movimiento: {result.MoveType} - {result.MoveName}");
             code.AppendLine($"// Total de inputs: {inputSequence.Count}");
             code.AppendLine();
