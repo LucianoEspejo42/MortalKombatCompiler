@@ -1,8 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using MortalKombatCompiler.API.Models;  
-using MortalKombatCompiler.API.Compiler;                         
+using MortalKombatCompiler.API.Models;
+using MortalKombatCompiler.API.Compiler;
 
 namespace MortalKombatCompiler.API.Compiler
 {
@@ -36,6 +36,16 @@ namespace MortalKombatCompiler.API.Compiler
             try
             {
                 ParseSequence();
+
+                // FASE 1: Validación de tiempos (análisis semántico de restricciones temporales)
+                if (!ValidateTimings())
+                {
+                    // DETENER COMPILACIÓN - Error en análisis semántico
+                    result.Success = false;
+                    return; // NO continuar a la siguiente fase
+                }
+
+                // FASE 2: Identificación de movimiento (análisis semántico de patrones)
                 ValidateAndIdentifyMove();
             }
             catch (Exception ex)
@@ -83,19 +93,42 @@ namespace MortalKombatCompiler.API.Compiler
             });
         }
 
-        private void ValidateAndIdentifyMove()
+        private bool ValidateTimings()
         {
-            for (int i = 0; i < inputSequence.Count; i++)
+            bool hasErrors = false;
+
+            for (int i = 1; i < inputSequence.Count; i++)
             {
                 var input = inputSequence[i];
 
-                if (i > 0 && input.TimingMs > TIMEOUT_MS)
-                    result.Errors.Add($"Timeout excedido en input {i + 1}: {input.TimingMs}ms");
+                if (input.TimingMs > TIMEOUT_MS)
+                {
+                    result.Errors.Add($"TIMEOUT: Tiempo entre inputs excede {TIMEOUT_MS}ms (encontrado: {input.TimingMs}ms en posición {i + 1})");
+                    hasErrors = true;
+                    Console.WriteLine($"[DEBUG] Error detectado: TIMEOUT en posición {i + 1}");
+                }
 
-                if (i > 0 && input.TimingMs < DEBOUNCE_MS)
-                    result.Errors.Add($"Inputs demasiado rápidos en posición {i + 1}: {input.TimingMs}ms");
+                if (input.TimingMs < DEBOUNCE_MS)
+                {
+                    result.Errors.Add($"DEBOUNCE: Tiempo entre inputs menor a {DEBOUNCE_MS}ms (encontrado: {input.TimingMs}ms en posición {i + 1})");
+                    hasErrors = true;
+                    Console.WriteLine($"[DEBUG] Error detectado: DEBOUNCE en posición {i + 1}");
+                }
             }
 
+            if (hasErrors)
+            {
+                Console.WriteLine("[DEBUG] Generando código de error y deteniendo compilación");
+                GenerateErrorCode();
+                return false;
+            }
+
+            Console.WriteLine("[DEBUG] Validación de tiempos exitosa, continuando...");
+            return true;
+        }
+
+        private void ValidateAndIdentifyMove()
+        {
             var commands = inputSequence.Select(i => i.Command).ToList();
 
             foreach (var move in cyraxMoves)
@@ -126,8 +159,10 @@ namespace MortalKombatCompiler.API.Compiler
                 }
             }
 
+            // Secuencia no reconocida
             result.Success = false;
             result.Errors.Add("Secuencia no coincide con ningún movimiento conocido");
+            GenerateUnknownMoveCode();
         }
 
         private void GenerateIntermediateCode()
@@ -152,6 +187,56 @@ namespace MortalKombatCompiler.API.Compiler
             code.AppendLine("    ]");
             code.AppendLine("    ANIMATION: START");
             code.AppendLine($"    DURATION: {inputSequence.Sum(i => i.TimingMs)}ms");
+            code.AppendLine("}");
+
+            result.GeneratedCode = code.ToString();
+        }
+
+        private void GenerateErrorCode()
+        {
+            var code = new System.Text.StringBuilder();
+            code.AppendLine("// ERROR DE COMPILACIÓN - VALIDACIÓN DE TIEMPOS");
+            code.AppendLine($"// Total de inputs: {inputSequence.Count}");
+            code.AppendLine("// ERRORES ENCONTRADOS:");
+
+            foreach (var error in result.Errors)
+            {
+                code.AppendLine($"// - {error}");
+            }
+
+            code.AppendLine();
+            code.AppendLine("VALIDATION_FAILED {");
+            code.AppendLine("    REASON: TIMING_ERROR");
+            code.AppendLine("    SEQUENCE: [");
+
+            foreach (var input in inputSequence)
+            {
+                code.AppendLine($"        {{ COMMAND: \"{input.Command}\", TIMING: {input.TimingMs} }},");
+            }
+
+            code.AppendLine("    ]");
+            code.AppendLine("}");
+
+            result.GeneratedCode = code.ToString();
+        }
+
+        private void GenerateUnknownMoveCode()
+        {
+            var code = new System.Text.StringBuilder();
+            code.AppendLine("// SECUENCIA NO RECONOCIDA");
+            code.AppendLine($"// Total de inputs: {inputSequence.Count}");
+            code.AppendLine("// La secuencia no coincide con ningún movimiento conocido");
+            code.AppendLine();
+            code.AppendLine("UNKNOWN_SEQUENCE {");
+            code.AppendLine("    REASON: NO_MATCH_FOUND");
+            code.AppendLine("    SEQUENCE: [");
+
+            foreach (var input in inputSequence)
+            {
+                code.AppendLine($"        {{ COMMAND: \"{input.Command}\", TIMING: {input.TimingMs} }},");
+            }
+
+            code.AppendLine("    ]");
             code.AppendLine("}");
 
             result.GeneratedCode = code.ToString();
